@@ -90,12 +90,29 @@ int main(int argc, char* argv[]){
 
 		if((connection_sock = accept(in_sock, (struct sockaddr *) &addr, (socklen_t *) &addr_size)) < 0){
 			perror("Failed to accept connection \n");
+			exit(EXIT_FAILURE);
 		}
 
-		printf("Connection_socket: %d\n", connection_socket);
+		//printf("Connection_socket: %d\n", connection_socket);
 		conn_sock_ptr = malloc(sizeof(int));
 		*conn_sock_ptr = connection_socket);
+		if(num_clients >= MAX_CLIENTS)
+			close(conn_sock);
+
+		if(num_clients < MAX_CLIENTS){
+			if(pthread_create(&tid, NULL, create_connection, &connection_socket) < 0) {
+				perror("Failed to create thread\n");
+				exit(EXIT_FAILURE);
+			}
+			if(pthread_detach(tid) < 0){
+				perror("Failed to detach thread\n");
+				exit(EXIT_FAILURE);
+			}
+		}
+
 	}
+	close(in_socket);
+	pthread_exit(0);
 }
 
 
