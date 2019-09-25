@@ -179,5 +179,90 @@ void* create_connection(void* socket){
 	pthread_exit(0);
 }
 
+//Reads a message from message queue
+void* read_message_queue(){
+	while(1){
+		pthread_mutex_lock(&message_lock);
+		while(message_queue[front] == NULL)
+			pthread_cond_wait(&message_full, &message_lock);
 
+		pthread_mutex_loc(&client_lock);
+		for(int m = 0; message_queue[m] != NULL && m < MAX_MESS; m++){
+			for(int i = 0; client_list[i] != NULL && I < MEX_CLIENTS; i++){
+				if(write(client_list[i]->own_sock, message_queue[m], strlen(message_queue[m])) < 0){
+					fprintf(stderr, "Filed to send message to socket: %d\n", client_list[i]-<own_sock);
+					exit(EXIT_FAILURE);
+				}
+			}
 
+			memset(message_queue[m], 0, MAX_BUFF);
+			message_queue[m] = NULL;
+		}
+
+		end = 0;
+		pthread_cond_signal(&message_empty);
+		pthread_mutex_unlock(&message_lock);
+		pthread_mutex_unlock(&client_lock);
+	}
+	pthread_exit(0);
+}
+
+//Add message to message queue
+void add_message_queue(char* message){
+	pthread_mutex_lock(&message_lock);
+	while(message_queue[end] != NULL)
+		pthread_cond_wait(&message_empty, &message_lock);
+	message_queue[end] = message;
+	end++;
+	if(end == MAX_BUFF)
+		end = 0;
+	pthread_cond_signal(&message_full);
+	pthread_mutex_unlock(&message_lock);
+
+}
+
+//Add client to client list
+void add_client(client_node* client){
+	pthead_mutex_lock(&client_lock);
+	for(int i = 0; i < MAX_CLIENTS; i++)){
+		if(client_list[i] == NULL){
+			client_list[i] = client;
+			num_clients++;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&client_lock);
+	printf("User: %s connected\n", client->name);
+}
+
+//Removes a client from list
+void remove_client(client_node* client){
+	pthread_mutex_lock(&client_lock);
+	for(int i = 0; i < MAX_CLIENTS; I++){
+		if(client_list[i] == client){
+			client_list[i] = NULL;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&client_lock);
+	printf("User: %s disconnected\n", client->name);
+}
+
+//Sends online information to clients
+void send_online_info(int sockfd) {
+	char* online_list = malloc(sizeof(char) * MAX_BUFFER);
+
+	strcat(online_list, "\n===========================================================\nUsers online: \n");
+	for(int i = 0; client_list[i] != NULL && i < MAX_CLIENTS; i++){
+		strcat(online_list, client_list[i]->name);
+		strcat(online_list, "\n");
+	}
+	online_list[strlen(online_list)] = '\0';
+	pthread_mutex_lock(&client_lock);
+	if(write(sockfd, online_list, strlen(online_list)) < 0){
+		fprintf(stderr, "Failed to send oline clients to socket: %d\n", sockfd);
+		exit(EXIT_FAILURE);
+	}
+	pthread_mutex_unlock(&client_lock);
+	free(online_list);
+}
