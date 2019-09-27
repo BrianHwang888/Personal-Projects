@@ -296,5 +296,6 @@ void announce_joinning(char* message, char* username){
 //Notify other clients when client leaves chat
 void announce_leaving(char* message, char* username){
 	sprintf(message, "%s has left the vchat\n", username);
-	add_message_queue(message);
+	for(int i = 0; client_list[i] != NULL && i < MAX_CLIENTS; i++)
+		write(client_list[i]->own_socket, message, strlen(message));
 }
