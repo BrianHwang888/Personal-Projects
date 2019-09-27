@@ -266,3 +266,35 @@ void send_online_info(int sockfd) {
 	pthread_mutex_unlock(&client_lock);
 	free(online_list);
 }
+
+/*
+Create client quit message; checks if client is using a windows machine
+quit_window: quit message for windows machine
+quit_other: quit message for other machines
+*/
+char* create_quit_message(char* username, int is_window){
+	int len;
+	char* quit;
+
+	quit = strdup(username);
+	len = strlen(quit);
+	quit[len] = ':';
+
+	if(is_window)
+		strcpy(quit + len + 1, "/quit\r\n");
+	else
+		strcpy(quit + len + 1, "/quit\n");
+	return quit;
+}
+
+//Notify other clients when new client joins chat
+void announce_joinning(char* message, char* username){
+	sprintf(message, "%s has joined the chat\n", username);
+	add_message_queue(message);
+}
+
+//Notify other clients when client leaves chat
+void announce_leaving(char* message, char* username){
+	sprintf(message, "%s has left the vchat\n", username);
+	add_message_queue(message);
+}
