@@ -21,12 +21,12 @@ typedef struct{
 }client_node;
 
 void* create_connection(void* socket);
-void* read_message_queue(void);
+void* read_message_queue();
 void add_message_queue(char* message);
 void add_client(client_node* client);
 void remove_client(client_node* client);
 void send_online_info(int sockfd);
-void announce_joining(char* message, char* username);
+void announce_joinning(char* message, char* username);
 void announce_leaving(char* message, char* username);
 char* create_quit_message(char* username, int is_window);
 
@@ -36,10 +36,10 @@ client_node* client_list[MAX_CLIENTS];
 pthread_cond_t message_full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t message_empty = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t message_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t client_lock = PTHREAD_MUTUEX_INITIALIZER;
+pthread_mutex_t client_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t conenection_lock = PTHREAD_MUTEX_INITIALIZER;
 
-
+int num_clients = 0, front = 0, end = 0;
 //in_socket is server's socket and connection_socket is the client's socket
 int main(int argc, char* argv[]){
 
@@ -47,14 +47,14 @@ int main(int argc, char* argv[]){
 	struct sockaddr_in addr;
 	pthread_t tid, message_tid;
 
-	int port;
-	int opt;
+	int port = 8080;
+	int opt = 1;
 
 	memset(&addr, 0, sizeof(struct sockaddr_in));
-	addr.sin_family = AF_INETL
+	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 	addr.sin_addr.s_addr = INADDR_ANY;
-	addr_size = sizeof(addr);
+	address_size = sizeof(addr);
 
 	//Error checking for setting up socket
 	if((in_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0 ){
@@ -62,7 +62,7 @@ int main(int argc, char* argv[]){
 		exit(EXIT_FAILURE);
 	}
 
-	if((setsockopt(in_socket, SOL_SOCKET, SO_REUSEADDR | SO_RESUEPORT, &opt, sizeof(opt))) < 0){
+	if((setsockopt(in_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) < 0){
 		perror("Failed to set socket options\n");
 		exit(EXIT_FAILURE);
 	}
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]){
 		exit(EXIT_FAILURE);
 	}
 
-	if((listen(in_sock, 0)) < 0){
+	if((listen(in_socket, 0)) < 0){
 		perror("Failed to listen to socket in\n");
 		exit(EXIT_FAILURE);
 	}
@@ -90,16 +90,13 @@ int main(int argc, char* argv[]){
 	//Loop to spawn client threads
 	while(1){
 
-		if((connection_sock = accept(in_sock, (struct sockaddr *) &addr, (socklen_t *) &addr_size)) < 0){
+		if((connection_socket = accept(in_socket, (struct sockaddr *) &addr, (socklen_t *) &address_size)) < 0){
 			perror("Failed to accept connection \n");
 			exit(EXIT_FAILURE);
 		}
 
-		//printf("Connection_socket: %d\n", connection_socket);
-		conn_sock_ptr = malloc(sizeof(int));
-		*conn_sock_ptr = connection_socket);
 		if(num_clients >= MAX_CLIENTS)
-			close(conn_sock);
+			close(connection_socket);
 
 		if(num_clients < MAX_CLIENTS){
 			if(pthread_create(&tid, NULL, create_connection, &connection_socket) < 0) {
@@ -120,20 +117,20 @@ int main(int argc, char* argv[]){
 //Creating thread for client connection
 void* create_connection(void* socket){
 	int* client_socket = socket;
-	client_node* client = (client_node)malloc(sizeof(client_node));
+	client_node* client = (client_node*)malloc(sizeof(client_node));
 	char* username = malloc(MAX_NAME_LENGTH * sizeof(char));
 	char* welcome_message = "==================== Welcome to the Server ====================";
 	char* message = malloc(sizeof(char) * MAX_BUFFER);
 	char* quit_message_window, *quit_message_other;
 
-	if(write(*client_socket, welcome_message, strlen(welcome_message)) < )){
+	if(write(*client_socket, welcome_message, strlen(welcome_message)) < 0){
 		perror("Failed to send greetings\n");
 		puts(strerror(errno));
 	}
 
 	memset(client, 0, sizeof(client_node));
 	if(read(*client_socket, username, MAX_NAME_LENGTH) < 0){
-		perror("Failed to read username from client\n Socket: %d\n", *client_socket);
+		perror("Failed to read username from client\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -142,25 +139,25 @@ void* create_connection(void* socket){
 	client->own_socket = *client_socket;
 	add_client(client);
 	send_online_info(*client_socket);
-	announce_joining(message, client->name);
+	announce_joinning(message, client->name);
 
 	quit_message_window = create_quit_message(username, 1);
 	quit_message_other = create_quit_message(username, 0);
 
 	while(1){
-		if(read(client->own_socket, message, MAX_BUFFER)) < 0){
+		if((read(client->own_socket, message, MAX_BUFFER)) < 0){
 			perror("Failed to read client message\n");
 		}
 
 		puts(message);
-		if(strcmp(message, quit_message_window) == 0 || strcmp(message, quit_message_other == 0){
+		if(strcmp(message, quit_message_window) == 0 || strcmp(message, quit_message_other) == 0){
 			puts("quit");
 			announce_leaving(message, client->name);
 			break;
 		}
 
 		printf("Message %s Using socket: %d\n", message, client->own_socket);
-		add_message(message);
+		add_message_queue(message);
 	}
 
 	close(client->own_socket);
@@ -186,16 +183,16 @@ void* read_message_queue(){
 		while(message_queue[front] == NULL)
 			pthread_cond_wait(&message_full, &message_lock);
 
-		pthread_mutex_loc(&client_lock);
-		for(int m = 0; message_queue[m] != NULL && m < MAX_MESS; m++){
-			for(int i = 0; client_list[i] != NULL && I < MEX_CLIENTS; i++){
-				if(write(client_list[i]->own_sock, message_queue[m], strlen(message_queue[m])) < 0){
-					fprintf(stderr, "Filed to send message to socket: %d\n", client_list[i]-<own_sock);
+		pthread_mutex_lock(&client_lock);
+		for(int m = 0; message_queue[m] != NULL && m < MAX_MESSAGE_QUEUE_LENGTH; m++){
+			for(int i = 0; client_list[i] != NULL && i < MAX_CLIENTS; i++){
+				if(write(client_list[i]->own_socket, message_queue[m], strlen(message_queue[m])) < 0){
+					fprintf(stderr, "Filed to send message to socket: %d\n", client_list[i]->own_socket);
 					exit(EXIT_FAILURE);
 				}
 			}
 
-			memset(message_queue[m], 0, MAX_BUFF);
+			memset(message_queue[m], 0, MAX_BUFFER);
 			message_queue[m] = NULL;
 		}
 
@@ -214,7 +211,7 @@ void add_message_queue(char* message){
 		pthread_cond_wait(&message_empty, &message_lock);
 	message_queue[end] = message;
 	end++;
-	if(end == MAX_BUFF)
+	if(end == MAX_BUFFER)
 		end = 0;
 	pthread_cond_signal(&message_full);
 	pthread_mutex_unlock(&message_lock);
@@ -223,8 +220,8 @@ void add_message_queue(char* message){
 
 //Add client to client list
 void add_client(client_node* client){
-	pthead_mutex_lock(&client_lock);
-	for(int i = 0; i < MAX_CLIENTS; i++)){
+	pthread_mutex_lock(&client_lock);
+	for(int i = 0; i < MAX_CLIENTS; i++){
 		if(client_list[i] == NULL){
 			client_list[i] = client;
 			num_clients++;
@@ -238,7 +235,7 @@ void add_client(client_node* client){
 //Removes a client from list
 void remove_client(client_node* client){
 	pthread_mutex_lock(&client_lock);
-	for(int i = 0; i < MAX_CLIENTS; I++){
+	for(int i = 0; i < MAX_CLIENTS; i++){
 		if(client_list[i] == client){
 			client_list[i] = NULL;
 			break;
