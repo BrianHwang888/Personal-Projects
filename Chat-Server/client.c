@@ -1,4 +1,4 @@
-#include <arpa.inet.h>
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -26,7 +26,7 @@ int main(void){
 	reading_buffer = malloc(sizeof(char) * MAX_BUFFER);
 	writing_buffer = malloc(sizeof(char) * MAX_BUFFER);
 	username = malloc(sizeof(char) * MAX_NAMELEN);
-	message = malloc(sizeof(cahar) * MAX_BUFFER);
+	message = malloc(sizeof(char) * MAX_BUFFER);
 
 	//attempt to create socket for the client
 	if((socketfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
@@ -48,7 +48,7 @@ int main(void){
 		exit(EXIT_FAILURE);
 	}
 
-	send_username(reading_bufferm username, sockectfd);
+	send_username(reading_buffer, username, socketfd);
 	namelen = strlen(username);
 	strcpy(writing_buffer, username);
 	writing_buffer[namelen-1] = ':';
@@ -79,9 +79,9 @@ int main(void){
 		if(FD_ISSET(STDIN_FILENO, &readfds)){
 			read(STDIN_FILENO, message, MAX_BUFFER);
 			strcpy(writing_buffer + namelen, message);
-			write(message, 0, MAX_BUFFER);
+			write(socketfd, writing_buffer, MAX_BUFFER);
 			memset(message, 0, MAX_BUFFER);
-			if(strcmp(message, "/quit\r\n") == 0 || strcmp(message, "/quit\n"_ == 0){
+			if(strcmp(message, "/quit\r\n") == 0 || strcmp(message, "/quit\n") == 0){
 				FD_CLR(socketfd, &readfds);
 				done = 1;
 			}
@@ -91,7 +91,7 @@ int main(void){
 	free(reading_buffer);
 	free(writing_buffer);
 	free(message);
-	free(usernname);
+	free(username);
 	close(socketfd);
 	exit(EXIT_SUCCESS);
 

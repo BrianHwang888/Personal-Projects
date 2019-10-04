@@ -119,7 +119,7 @@ void* create_connection(void* socket){
 	int* client_socket = socket;
 	client_node* client = (client_node*)malloc(sizeof(client_node));
 	char* username = malloc(MAX_NAME_LENGTH * sizeof(char));
-	char* welcome_message = "==================== Welcome to the Server ====================";
+	char* welcome_message = "==================== Welcome to the Server ====================\nPlease enter your username: ";
 	char* message = malloc(sizeof(char) * MAX_BUFFER);
 	char* quit_message_window, *quit_message_other;
 
