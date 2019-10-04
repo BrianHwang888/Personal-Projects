@@ -2,6 +2,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +29,7 @@ void remove_client(client_node* client);
 void send_online_info(int sockfd);
 void announce_joinning(char* message, char* username);
 void announce_leaving(char* message, char* username);
+void create_log(char* username);
 char* create_quit_message(char* username, int is_window);
 
 char* message_queue[MAX_MESSAGE_QUEUE_LENGTH];
@@ -40,13 +42,16 @@ pthread_mutex_t client_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t conenection_lock = PTHREAD_MUTEX_INITIALIZER;
 
 int num_clients = 0, front = 0, end = 0;
+
+//logs file (with r and w privilages) holds entire conversation made
+FILE *logs;
+
 //in_socket is server's socket and connection_socket is the client's socket
 int main(int argc, char* argv[]){
 
 	int in_socket, connection_socket, address_size;
 	struct sockaddr_in addr;
 	pthread_t tid, message_tid;
-
 	int port = 8080;
 	int opt = 1;
 
@@ -114,6 +119,34 @@ int main(int argc, char* argv[]){
 	pthread_exit(0);
 }
 
+void create_log(char* username){
+	time_t current_time;
+    char* c_time_string;
+	char* log_name;
+	FILE* log_fp;
+
+	time(&current_time);
+	if(current_time == ((time_t)-1)){
+		fprintf(stderr, "Failed to obtain current time\n");
+		exit(EXIT_FAILURE);
+	}
+
+	c_time_string = ctime(&current_time);
+	if(c_time_string == NULL){
+		fprintf(stderr, "Failed to convert current time\n");
+		exit(EXIT_FAILURE);
+	}
+
+	log_name = (char*)malloc((strlen(username) + strlen(c_time_string) + 2) * sizeof(char));
+	memcpy(log_name, username, strlen(username));
+	memcpy(log_name + strlen(username), " ", 1);
+	memcpy(log_name + strlen(username)+1, c_time_string, strlen(c_time_string) + 1);
+	printf("%s", log_name);
+
+	//log_fp = fopen(log_name, "w");
+}
+
+
 //Creating thread for client connection
 void* create_connection(void* socket){
 	int* client_socket = socket;
@@ -138,6 +171,7 @@ void* create_connection(void* socket){
 	client->name = username;
 	client->own_socket = *client_socket;
 	add_client(client);
+	create_log(username);
 	send_online_info(*client_socket);
 	announce_joinning(message, client->name);
 
