@@ -29,7 +29,7 @@ void remove_client(client_node* client);
 void send_online_info(int sockfd);
 void announce_joinning(char* message, char* username);
 void announce_leaving(char* message, char* username);
-void create_log(char* username);
+FILE* create_log(char* username);
 char* create_quit_message(char* username, int is_window);
 
 char* message_queue[MAX_MESSAGE_QUEUE_LENGTH];
@@ -42,9 +42,6 @@ pthread_mutex_t client_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t conenection_lock = PTHREAD_MUTEX_INITIALIZER;
 
 int num_clients = 0, front = 0, end = 0;
-
-//logs file (with r and w privilages) holds entire conversation made
-FILE *logs;
 
 //in_socket is server's socket and connection_socket is the client's socket
 int main(int argc, char* argv[]){
@@ -119,11 +116,12 @@ int main(int argc, char* argv[]){
 	pthread_exit(0);
 }
 
-void create_log(char* username){
+//Creates log file
+FILE* create_log(char* username){
 	time_t current_time;
     char* c_time_string;
 	char* log_name;
-	FILE* log_fp;
+	FILE* logs;
 
 	time(&current_time);
 	if(current_time == ((time_t)-1)){
@@ -137,13 +135,17 @@ void create_log(char* username){
 		exit(EXIT_FAILURE);
 	}
 
-	log_name = (char*)malloc((strlen(username) + strlen(c_time_string) + 2) * sizeof(char));
+	log_name = (char*)malloc((strlen(username) + strlen(c_time_string) + 4) * sizeof(char));
+
+	//Creating the logs name
 	memcpy(log_name, username, strlen(username));
 	memcpy(log_name + strlen(username), " ", 1);
-	memcpy(log_name + strlen(username)+1, c_time_string, strlen(c_time_string) + 1);
-	printf("%s", log_name);
+	memcpy(log_name + strlen(username)+1, c_time_string, strlen(c_time_string)-1);
+	memcpy(log_name + strlen(log_name),".txt", 5);
 
-	//log_fp = fopen(log_name, "w");
+	logs = fopen(log_name, "w");
+	fprintf(logs, "Logs for user: %s\nDate: %s\n", username, c_time_string);
+	return logs;
 }
 
 
@@ -154,7 +156,11 @@ void* create_connection(void* socket){
 	char* username = malloc(MAX_NAME_LENGTH * sizeof(char));
 	char* welcome_message = "==================== Welcome to the Server ====================\nPlease enter your username: ";
 	char* message = malloc(sizeof(char) * MAX_BUFFER);
+	char* raw_time;
 	char* quit_message_window, *quit_message_other;
+	FILE* logs;
+	time_t current_time;
+	char* c_time_str;
 
 	if(write(*client_socket, welcome_message, strlen(welcome_message)) < 0){
 		perror("Failed to send greetings\n");
@@ -171,7 +177,10 @@ void* create_connection(void* socket){
 	client->name = username;
 	client->own_socket = *client_socket;
 	add_client(client);
-	create_log(username);
+
+	//Create a log file for client
+	logs = create_log(username);
+
 	send_online_info(*client_socket);
 	announce_joinning(message, client->name);
 
@@ -179,6 +188,7 @@ void* create_connection(void* socket){
 	quit_message_other = create_quit_message(username, 0);
 
 	while(1){
+
 		if((read(client->own_socket, message, MAX_BUFFER)) < 0){
 			perror("Failed to read client message\n");
 		}
@@ -190,7 +200,17 @@ void* create_connection(void* socket){
 			break;
 		}
 
-		printf("Message %s Using socket: %d\n", message, client->own_socket);
+		//obtain time when message was sent
+		time(&current_time);
+		c_time_str = ctime(&current_time);
+
+		//remove \n from c_time_str
+		raw_time = (char*)malloc((strlen(c_time_str)) * sizeof(char));
+		memcpy(raw_time, c_time_str, strlen(c_time_str) -1);
+		memcpy(raw_time + strlen(c_time_str), "\0", 1);
+
+		fprintf(logs,"[%s]: %s", raw_time, message);
+//		printf("Message %s Using socket: %d\n", message, client->own_socket);
 		add_message_queue(message);
 	}
 
@@ -201,12 +221,13 @@ void* create_connection(void* socket){
 	num_clients--;
 	pthread_mutex_unlock(&client_lock);
 
+
 	free(client);
 	free(message);
 	free(username);
 	free(quit_message_window);
 	free(quit_message_other);
-
+	fclose(logs);
 	pthread_exit(0);
 }
 
